@@ -808,7 +808,9 @@ class Qwen3NextGatedDeltaNet(nn.Module, MambaBase):
             self.events[1],
             self.aux_stream,
         )
-        return projected_states_qkvz, projected_states_ba
+        # Ensure contiguous outputs for torch.compile compatibility with Qwen3.5
+        # Fixes stride mismatch between fake and actual implementations
+        return projected_states_qkvz.contiguous(), projected_states_ba.contiguous()
 
     def _forward_core(
         self,
@@ -1712,9 +1714,11 @@ def gdn_in_proj_fake(
     layer_name: str,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Fake implementation for torch.compile."""
-    return hidden_states.new_empty(
-        hidden_states.shape[0], qkvz_output_size
-    ), hidden_states.new_empty(hidden_states.shape[0], ba_output_size)
+    # Ensure contiguous outputs for torch.compile compatibility with Qwen3.5
+    # Fixes stride mismatch between fake and actual implementations
+    qkvz_fake = hidden_states.new_empty(hidden_states.shape[0], qkvz_output_size)
+    ba_fake = hidden_states.new_empty(hidden_states.shape[0], ba_output_size)
+    return qkvz_fake.contiguous(), ba_fake.contiguous()
 
 
 def gdn_attention_core(
